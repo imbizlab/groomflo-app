@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertBusinessSchema, insertPostSchema } from "@shared/schema";
 import { generateWeeklyPosts } from "./services/content-generator";
 import { generateWeeklySchedule } from "./services/post-scheduler";
+import { facebookPoster } from "./services/facebook-poster";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -272,6 +273,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting post:", error);
       res.status(500).json({ error: "Failed to delete post" });
+    }
+  });
+
+  app.post("/api/posts/:id/publish-to-facebook", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { id } = req.params;
+      const post = await storage.getPost(id);
+      
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      const business = await storage.getBusiness(post.businessId);
+      if (!business || business.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      if (post.status !== "approved") {
+        return res.status(400).json({ error: "Post must be approved before publishing" });
+      }
+
+      const { facebookPostId } = await facebookPoster.postToFacebook(business, post);
+
+      const updatedPost = await storage.updatePost(id, {
+        status: "posted",
+        postedAt: new Date(),
+        facebookPostId,
+      });
+
+      res.json(updatedPost);
+    } catch (error) {
+      console.error("Error publishing to Facebook:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to publish to Facebook";
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  app.post("/api/facebook/validate-connection", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const business = await storage.getBusinessByUserId(userId);
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      if (!business.facebookPageId || !business.facebookAccessToken) {
+        return res.status(400).json({ error: "Facebook credentials not configured" });
+      }
+
+      const isValid = await facebookPoster.validatePageAccess(
+        business.facebookPageId,
+        business.facebookAccessToken
+      );
+
+      res.json({ valid: isValid });
+    } catch (error) {
+      console.error("Error validating Facebook connection:", error);
+      res.status(500).json({ error: "Failed to validate Facebook connection" });
+    }
+  });
+
+  app.post("/api/posts/publish-scheduled", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const business = await storage.getBusinessByUserId(userId);
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const now = new Date();
+      const scheduledPosts = await storage.getScheduledPostsByBusinessId(business.id);
+      
+      const postsToPublish = scheduledPosts.filter(post => 
+        post.status === "approved" && 
+        post.scheduledFor && 
+        new Date(post.scheduledFor) <= now
+      );
+
+      const results = await Promise.allSettled(
+        postsToPublish.map(async (post) => {
+          const { facebookPostId } = await facebookPoster.postToFacebook(business, post);
+          
+          await storage.updatePost(post.id, {
+            status: "posted",
+            postedAt: new Date(),
+            facebookPostId,
+          });
+
+          return { postId: post.id, success: true };
+        })
+      );
+
+      for (const result of results) {
+        if (result.status === "rejected" && result.reason) {
+          const postId = postsToPublish[results.indexOf(result)]?.id;
+          if (postId) {
+            await storage.updatePost(postId, {
+              status: "failed",
+            });
+          }
+        }
+      }
+
+      const successful = results.filter(r => r.status === "fulfilled").length;
+      const failed = results.filter(r => r.status === "rejected").length;
+
+      res.json({
+        total: postsToPublish.length,
+        successful,
+        failed,
+        results: results.map((r, idx) => {
+          if (r.status === "fulfilled") {
+            return r.value;
+          } else {
+            return {
+              postId: postsToPublish[idx]?.id,
+              success: false,
+              error: r.reason instanceof Error ? r.reason.message : "Unknown error"
+            };
+          }
+        }),
+      });
+    } catch (error) {
+      console.error("Error publishing scheduled posts:", error);
+      res.status(500).json({ error: "Failed to publish scheduled posts" });
     }
   });
 

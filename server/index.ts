@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { devAuthMiddleware } from "./middleware/auth";
+import { postSchedulerWorker } from "./services/post-scheduler-worker";
 
 const app = express();
 app.use(express.json());
@@ -71,4 +72,6 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
   });
+  
+  postSchedulerWorker.start(5);
 })();
