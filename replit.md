@@ -1,0 +1,69 @@
+# Social Media Automation Platform for Pet Groomers
+
+## Overview
+A full-stack social media automation platform that generates weekly content for pet groomers and automatically posts to Facebook. The system creates 7 posts per week (3 informative, 2 fun facts, 2 promotional) using custom ChatGPT prompts and DALL-E generated images.
+
+## Recent Changes
+- **2025-10-03**: Completed Facebook integration with automated posting scheduler
+- **2025-10-03**: Implemented PostSchedulerWorker that runs every 5 minutes to publish approved scheduled posts
+- **2025-10-03**: Fixed security vulnerabilities in API routes (multi-tenant authorization, field whitelisting)
+- **2025-10-03**: Fixed post scheduling to properly handle week boundaries and promotional post placement
+
+## Architecture
+
+### Tech Stack
+- **Frontend**: React with TypeScript, Wouter routing, TanStack Query, shadcn/ui components
+- **Backend**: Express.js with TypeScript
+- **Database**: PostgreSQL (Neon) with Drizzle ORM
+- **AI Services**: OpenAI GPT-4o for content, DALL-E for images
+- **Social Media**: Facebook Graph API for automated posting
+
+### Key Features
+1. **Business Onboarding**: Collect business details, social links, and custom ChatGPT prompts
+2. **Automated Content Generation**: Generate 7 weekly posts based on business context
+3. **Smart Scheduling**: 
+   - Promotional posts placed 4 and 2 days before slowest day (within same week)
+   - Posts scheduled between 7:00 AM - 9:30 AM
+4. **Facebook Integration**: Automated posting with scheduler worker
+5. **Post Management**: Review, edit, approve, and publish posts
+
+### Database Schema
+- `businesses`: Business profiles with Facebook credentials and custom prompts
+- `posts`: Generated posts with content, images, scheduling, and status tracking
+
+### Automated Posting System
+The PostSchedulerWorker service runs every 5 minutes and:
+1. Queries all businesses in the database
+2. For each business with Facebook credentials, finds approved posts due for publishing
+3. Publishes posts to Facebook Page using Graph API
+4. Marks posts as published (or failed if error occurs)
+5. Logs all activities for monitoring
+
+## Security Considerations
+
+### Known Limitations
+⚠️ **Facebook Access Tokens**: Currently stored in plaintext in the database. For production deployment, tokens should be:
+- Encrypted at rest using a secrets management service
+- Rotated periodically
+- Stored separately from main database
+
+### Implemented Security
+✅ **Multi-tenant Authorization**: All API routes verify business ownership
+✅ **Field Whitelisting**: PATCH routes only allow specific fields to prevent privilege escalation
+✅ **Input Validation**: Zod schemas validate all request bodies
+✅ **Session Management**: Express sessions with secure cookies
+
+## Running the Project
+The workflow "Start application" runs `npm run dev` which starts:
+- Express server on port 5000
+- Vite development server
+- PostSchedulerWorker (automated posting every 5 minutes)
+
+## Pending Features
+- Email notification system for daily post confirmations with links
+
+## User Preferences
+- Material Design aesthetic with professional blue theme
+- Dark mode support throughout application
+- Using existing Facebook app (not OAuth flow)
+- Custom ChatGPT prompts provided by user during onboarding
