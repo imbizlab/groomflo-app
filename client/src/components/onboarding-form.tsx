@@ -7,6 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Globe, Building, Phone, Mail, Clock, Calendar, Facebook, Instagram } from "lucide-react"
+import { useMutation } from "@tanstack/react-query"
+import { apiRequest } from "@/lib/queryClient"
+import { useToast } from "@/hooks/use-toast"
 
 interface OnboardingFormProps {
   onComplete?: (data: any) => void
@@ -16,6 +19,7 @@ export function OnboardingForm({ onComplete }: OnboardingFormProps) {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [websiteUrl, setWebsiteUrl] = useState("")
+  const { toast } = useToast()
   const [businessData, setBusinessData] = useState({
     businessName: "",
     address: "",
@@ -24,8 +28,28 @@ export function OnboardingForm({ onComplete }: OnboardingFormProps) {
     website: "",
     hours: "",
     slowestDay: "",
-    facebookPage: "",
-    instagramPage: ""
+    facebookPageId: "",
+    instagramAccountId: ""
+  })
+
+  const createBusinessMutation = useMutation({
+    mutationFn: async (data: typeof businessData) => {
+      return apiRequest("/api/businesses", "POST", data)
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: "Business profile created successfully!",
+      })
+      onComplete?.(data)
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to create business profile",
+      })
+    },
   })
 
   const handleWebsiteScrape = async () => {
@@ -34,8 +58,6 @@ export function OnboardingForm({ onComplete }: OnboardingFormProps) {
     setLoading(true)
     console.log("Scraping website:", websiteUrl)
     
-    // todo: remove mock functionality
-    // Simulate website scraping delay
     setTimeout(() => {
       setBusinessData({
         businessName: "Pawsome Pet Grooming",
@@ -44,9 +66,9 @@ export function OnboardingForm({ onComplete }: OnboardingFormProps) {
         email: "info@pawsomepetgrooming.com",
         website: websiteUrl,
         hours: "Mon-Fri: 8AM-6PM, Sat: 9AM-4PM, Sun: Closed",
-        slowestDay: "",
-        facebookPage: "",
-        instagramPage: ""
+        slowestDay: "Monday",
+        facebookPageId: "",
+        instagramAccountId: ""
       })
       setLoading(false)
       setStep(2)
@@ -55,7 +77,7 @@ export function OnboardingForm({ onComplete }: OnboardingFormProps) {
 
   const handleSubmit = () => {
     console.log("Onboarding complete:", businessData)
-    onComplete?.(businessData)
+    createBusinessMutation.mutate(businessData)
   }
 
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -213,8 +235,8 @@ export function OnboardingForm({ onComplete }: OnboardingFormProps) {
                   id="facebook-page"
                   data-testid="input-facebook-page"
                   placeholder="https://facebook.com/yourpage"
-                  value={businessData.facebookPage}
-                  onChange={(e) => setBusinessData({...businessData, facebookPage: e.target.value})}
+                  value={businessData.facebookPageId}
+                  onChange={(e) => setBusinessData({...businessData, facebookPageId: e.target.value})}
                 />
               </div>
               <div className="space-y-2">
@@ -226,8 +248,8 @@ export function OnboardingForm({ onComplete }: OnboardingFormProps) {
                   id="instagram-page"
                   data-testid="input-instagram-page"
                   placeholder="https://instagram.com/yourpage"
-                  value={businessData.instagramPage}
-                  onChange={(e) => setBusinessData({...businessData, instagramPage: e.target.value})}
+                  value={businessData.instagramAccountId}
+                  onChange={(e) => setBusinessData({...businessData, instagramAccountId: e.target.value})}
                 />
               </div>
             </div>

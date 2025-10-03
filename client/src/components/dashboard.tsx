@@ -22,54 +22,18 @@ import { Post } from "@shared/schema"
 interface DashboardProps {
   businessName?: string
   onGenerateNewWeek?: () => void
+  posts?: Post[]
+  isGenerating?: boolean
+  isLoading?: boolean
 }
 
 export function Dashboard({ 
   businessName = "Pawsome Pet Grooming",
-  onGenerateNewWeek
+  onGenerateNewWeek,
+  posts = [],
+  isGenerating = false,
+  isLoading = false
 }: DashboardProps) {
-  // todo: remove mock functionality
-  const [posts] = useState<Post[]>([
-    {
-      id: "1",
-      businessId: "business-1",
-      postType: "informative",
-      content: "🐕 Did you know regular grooming isn't just about looking good? It's essential for your pet's health! Regular baths and brushing help prevent skin issues, matting, and even detect early signs of health problems. Book your furry friend's next grooming session today! 🛁✨",
-      imageUrl: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=400&h=300&fit=crop",
-      status: "pending",
-      scheduledFor: new Date("2024-12-30T08:30:00"),
-      postedAt: null,
-      facebookPostId: null,
-      instagramPostId: null,
-      createdAt: new Date()
-    },
-    {
-      id: "2", 
-      businessId: "business-1",
-      postType: "fun_fact",
-      content: "🎾 Fun Fact Friday! Did you know that a dog's sense of smell is 10,000 to 100,000 times stronger than humans? That's why they love sniffing around during their grooming sessions - they're experiencing a whole world of scents we can't even imagine! 🐾👃",
-      imageUrl: "https://images.unsplash.com/photo-1552053831-71594a27632d?w=400&h=300&fit=crop",
-      status: "approved",
-      scheduledFor: new Date("2024-12-31T09:15:00"),
-      postedAt: null,
-      facebookPostId: null,
-      instagramPostId: null,
-      createdAt: new Date()
-    },
-    {
-      id: "3",
-      businessId: "business-1", 
-      postType: "promotional",
-      content: "🌟 Beat the Monday Blues! 🌟\n\nMake your pet feel pampered this Monday with our special grooming package. Your furry friend deserves to start the week looking and feeling their best!\n\n✂️ Full grooming service\n🛁 Relaxing bath with premium shampoo\n💅 Nail trimming\n🎀 Finishing touches\n\nBook now and give your pet the royal treatment they deserve! 👑🐾",
-      imageUrl: "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop",
-      status: "pending",
-      scheduledFor: new Date("2024-12-29T07:45:00"),
-      postedAt: null,
-      facebookPostId: null,
-      instagramPostId: null,
-      createdAt: new Date()
-    }
-  ])
 
   const weekStats = {
     totalPosts: 7,
