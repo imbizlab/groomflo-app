@@ -7,8 +7,90 @@ import { generateWeeklySchedule } from "./services/post-scheduler";
 import { facebookPoster } from "./services/facebook-poster";
 import { emailNotificationWorker } from "./services/email-notification-worker";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
+
+const accountCreationSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  businessName: z.string().min(1),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+  website: z.string().optional(),
+  notificationEmail: z.string().email().optional(),
+});
+
+function verifyApiKey(req: any, res: any, next: any) {
+  const apiKey = req.headers["x-api-key"] || req.headers["authorization"]?.replace("Bearer ", "");
+  
+  if (!process.env.API_KEY) {
+    return res.status(500).json({ error: "API key not configured on server" });
+  }
+  
+  if (!apiKey || apiKey !== process.env.API_KEY) {
+    return res.status(401).json({ error: "Invalid API key" });
+  }
+  
+  next();
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  
+  app.post("/api/accounts/create", verifyApiKey, async (req, res) => {
+    try {
+      const validatedData = accountCreationSchema.parse(req.body);
+      
+      const existingUser = await storage.getUserByUsername(validatedData.email);
+      if (existingUser) {
+        return res.status(400).json({ error: "An account with this email already exists" });
+      }
+
+      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+      
+      const user = await storage.createUser({
+        username: validatedData.email,
+        password: hashedPassword,
+      });
+
+      const business = await storage.createBusiness({
+        userId: user.id,
+        businessName: validatedData.businessName,
+        address: validatedData.address || null,
+        phone: validatedData.phone || null,
+        email: validatedData.email,
+        website: validatedData.website || null,
+        hours: null,
+        slowestDay: "monday",
+        facebookPageId: null,
+        facebookAccessToken: null,
+        instagramAccountId: null,
+        customPromptInformative: null,
+        customPromptFunFact: null,
+        customPromptPromotional: null,
+        notificationEmail: validatedData.notificationEmail || validatedData.email,
+        dailyEmailNotifications: true,
+        isOnboarded: false,
+      });
+
+      res.status(201).json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.username,
+        },
+        business: {
+          id: business.id,
+          businessName: business.businessName,
+        },
+        message: "Account created successfully",
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Error creating account:", error);
+      res.status(500).json({ error: "Failed to create account" });
+    }
+  });
   
   app.post("/api/businesses", async (req, res) => {
     try {

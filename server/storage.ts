@@ -14,6 +14,7 @@ import {
   type PostSchedule,
   type InsertPostSchedule,
 } from "@shared/schema";
+import { encryptToken, decryptToken } from "./utils/encryption";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -40,6 +41,40 @@ export interface IStorage {
 }
 
 export class DbStorage implements IStorage {
+  private decryptBusinessToken(business: Business | undefined): Business | undefined {
+    if (!business || !business.facebookAccessToken) {
+      return business;
+    }
+
+    try {
+      return {
+        ...business,
+        facebookAccessToken: decryptToken(business.facebookAccessToken),
+      };
+    } catch (error) {
+      console.error(`Failed to decrypt Facebook token for business ${business.id}:`, error);
+      return business;
+    }
+  }
+
+  private encryptBusinessToken(business: InsertBusiness & { userId: string }): InsertBusiness & { userId: string };
+  private encryptBusinessToken(business: Partial<InsertBusiness>): Partial<InsertBusiness>;
+  private encryptBusinessToken(business: any): any {
+    if (!business.facebookAccessToken) {
+      return business;
+    }
+
+    try {
+      return {
+        ...business,
+        facebookAccessToken: encryptToken(business.facebookAccessToken),
+      };
+    } catch (error) {
+      console.error("Failed to encrypt Facebook token:", error);
+      throw error;
+    }
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
     return result[0];
@@ -57,26 +92,29 @@ export class DbStorage implements IStorage {
 
   async getBusiness(id: string): Promise<Business | undefined> {
     const result = await db.select().from(businesses).where(eq(businesses.id, id)).limit(1);
-    return result[0];
+    return this.decryptBusinessToken(result[0]);
   }
 
   async getBusinessByUserId(userId: string): Promise<Business | undefined> {
     const result = await db.select().from(businesses).where(eq(businesses.userId, userId)).limit(1);
-    return result[0];
+    return this.decryptBusinessToken(result[0]);
   }
 
   async getAllBusinesses(): Promise<Business[]> {
-    return db.select().from(businesses);
+    const results = await db.select().from(businesses);
+    return results.map(business => this.decryptBusinessToken(business)!).filter(Boolean);
   }
 
   async createBusiness(business: InsertBusiness & { userId: string }): Promise<Business> {
-    const result = await db.insert(businesses).values(business).returning();
-    return result[0];
+    const encryptedBusiness = this.encryptBusinessToken(business);
+    const result = await db.insert(businesses).values(encryptedBusiness).returning();
+    return this.decryptBusinessToken(result[0])!;
   }
 
   async updateBusiness(id: string, business: Partial<InsertBusiness>): Promise<Business | undefined> {
-    const result = await db.update(businesses).set(business).where(eq(businesses.id, id)).returning();
-    return result[0];
+    const encryptedBusiness = this.encryptBusinessToken(business);
+    const result = await db.update(businesses).set(encryptedBusiness).where(eq(businesses.id, id)).returning();
+    return this.decryptBusinessToken(result[0]);
   }
 
   async getPost(id: string): Promise<Post | undefined> {
