@@ -5,6 +5,7 @@ import { insertBusinessSchema, insertPostSchema } from "@shared/schema";
 import { generateWeeklyPosts } from "./services/content-generator";
 import { generateWeeklySchedule } from "./services/post-scheduler";
 import { facebookPoster } from "./services/facebook-poster";
+import { emailNotificationWorker } from "./services/email-notification-worker";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -81,6 +82,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customPromptInformative: true,
         customPromptFunFact: true,
         customPromptPromotional: true,
+        notificationEmail: true,
+        dailyEmailNotifications: true,
       });
       
       const validatedData = allowedUpdateSchema.parse(req.body);
@@ -411,6 +414,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error publishing scheduled posts:", error);
       res.status(500).json({ error: "Failed to publish scheduled posts" });
+    }
+  });
+
+  app.post("/api/notifications/test", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const business = await storage.getBusinessByUserId(userId);
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const emailSchema = z.string().email();
+      const validatedEmail = emailSchema.parse(email);
+
+      await emailNotificationWorker.sendTestNotification(business.id, validatedEmail);
+
+      res.json({ success: true, message: "Test email sent successfully" });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid email address" });
+      }
+      console.error("Error sending test notification:", error);
+      res.status(500).json({ error: "Failed to send test notification" });
     }
   });
 

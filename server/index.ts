@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { devAuthMiddleware } from "./middleware/auth";
 import { postSchedulerWorker } from "./services/post-scheduler-worker";
+import { emailNotificationWorker } from "./services/email-notification-worker";
 
 const app = express();
 app.use(express.json());
@@ -74,4 +75,5 @@ app.use((req, res, next) => {
   });
   
   postSchedulerWorker.start(5);
+  emailNotificationWorker.start(24);
 })();

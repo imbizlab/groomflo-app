@@ -25,6 +25,8 @@ export const businesses = pgTable("businesses", {
   customPromptInformative: text("custom_prompt_informative"),
   customPromptFunFact: text("custom_prompt_fun_fact"),
   customPromptPromotional: text("custom_prompt_promotional"),
+  notificationEmail: text("notification_email"),
+  dailyEmailNotifications: boolean("daily_email_notifications").default(true),
   isOnboarded: boolean("is_onboarded").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
