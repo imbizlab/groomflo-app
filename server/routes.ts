@@ -19,6 +19,18 @@ const accountCreationSchema = z.object({
   notificationEmail: z.string().email().optional(),
 });
 
+const verifyMembershipSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+const updateSubscriptionSchema = z.object({
+  email: z.string().email(),
+  subscriptionStatus: z.enum(["active", "expired", "cancelled", "trial"]),
+  subscriptionStartDate: z.string().datetime(),
+  subscriptionEndDate: z.string().datetime(),
+});
+
 function verifyApiKey(req: any, res: any, next: any) {
   const apiKey = req.headers["x-api-key"] || req.headers["authorization"]?.replace("Bearer ", "");
   
@@ -46,9 +58,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const hashedPassword = await bcrypt.hash(validatedData.password, 10);
       
+      const now = new Date();
+      const oneMonthLater = new Date(now);
+      oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+      
       const user = await storage.createUser({
         username: validatedData.email,
         password: hashedPassword,
+        subscriptionStatus: "active",
+        subscriptionStartDate: now,
+        subscriptionEndDate: oneMonthLater,
       });
 
       const business = await storage.createBusiness({
@@ -89,6 +108,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error creating account:", error);
       res.status(500).json({ error: "Failed to create account" });
+    }
+  });
+
+  app.post("/api/auth/verify-membership", verifyApiKey, async (req, res) => {
+    try {
+      const validatedData = verifyMembershipSchema.parse(req.body);
+      
+      const user = await storage.getUserByUsername(validatedData.email);
+      if (!user) {
+        return res.status(401).json({ 
+          success: false,
+          error: "Invalid credentials" 
+        });
+      }
+
+      const passwordMatch = await bcrypt.compare(validatedData.password, user.password);
+      if (!passwordMatch) {
+        return res.status(401).json({ 
+          success: false,
+          error: "Invalid credentials" 
+        });
+      }
+
+      const now = new Date();
+      const hasEndDate = user.subscriptionEndDate !== null && user.subscriptionEndDate !== undefined;
+      const isExpired = hasEndDate && new Date(user.subscriptionEndDate!) < now;
+      const isActive = user.subscriptionStatus === "active" && hasEndDate && !isExpired;
+
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.username,
+        },
+        subscription: {
+          status: isExpired ? "expired" : user.subscriptionStatus,
+          isActive: isActive,
+          startDate: user.subscriptionStartDate,
+          endDate: user.subscriptionEndDate,
+        },
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Error verifying membership:", error);
+      res.status(500).json({ error: "Failed to verify membership" });
+    }
+  });
+
+  app.post("/api/auth/update-subscription", verifyApiKey, async (req, res) => {
+    try {
+      const validatedData = updateSubscriptionSchema.parse(req.body);
+      
+      const user = await storage.getUserByUsername(validatedData.email);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const updates: any = {
+        subscriptionStatus: validatedData.subscriptionStatus,
+        subscriptionStartDate: new Date(validatedData.subscriptionStartDate),
+        subscriptionEndDate: new Date(validatedData.subscriptionEndDate),
+      };
+
+      const updatedUser = await storage.updateUser(user.id, updates);
+
+      if (!updatedUser) {
+        return res.status(500).json({ error: "Failed to update user" });
+      }
+
+      res.json({
+        success: true,
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.username,
+        },
+        subscription: {
+          status: updatedUser.subscriptionStatus,
+          startDate: updatedUser.subscriptionStartDate,
+          endDate: updatedUser.subscriptionEndDate,
+        },
+        message: "Subscription updated successfully",
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      console.error("Error updating subscription:", error);
+      res.status(500).json({ error: "Failed to update subscription" });
     }
   });
   

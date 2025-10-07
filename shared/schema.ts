@@ -7,6 +7,9 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  subscriptionStatus: text("subscription_status").notNull().default("active"),
+  subscriptionStartDate: timestamp("subscription_start_date"),
+  subscriptionEndDate: timestamp("subscription_end_date"),
 });
 
 export const businesses = pgTable("businesses", {
@@ -57,6 +60,9 @@ export const postSchedules = pgTable("post_schedules", {
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+  subscriptionStatus: true,
+  subscriptionStartDate: true,
+  subscriptionEndDate: true,
 });
 
 export const insertBusinessSchema = createInsertSchema(businesses).omit({
