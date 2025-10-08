@@ -37,14 +37,15 @@ Before starting, make sure you have:
 
 OptimizePress may call webhooks differently depending on your version. Here are the common ways to set them up:
 
-### Method A: Using OptimizePress Zapier Integration
+### Method A: Using OptimizePress with Make.com Integration
 
-If OptimizePress integrates with Zapier:
+If OptimizePress integrates with Make.com:
 
-1. **Log into Zapier** (create free account if needed)
-2. **Create a new Zap** for each scenario below
+1. **Log into Make.com** (create free account if needed)
+2. **Create a new Scenario** for each webhook below
 3. **Configure the trigger** from OptimizePress events
-4. **Configure the action** as "Webhooks by Zapier" → "POST"
+4. **Add an HTTP module** → "Make a request"
+5. **Configure as POST request** with custom headers and body
 
 ### Method B: Direct Webhook Configuration
 
@@ -53,6 +54,44 @@ If OptimizePress has a direct webhook/API settings page:
 1. **Log into OptimizePress**
 2. **Navigate to**: Settings → Integrations → Webhooks (or similar)
 3. **Create new webhooks** for each scenario below
+
+---
+
+## 🔧 Step 3A: Detailed Make.com Scenario Setup
+
+Here's how to create each scenario in Make.com:
+
+### Creating a Scenario in Make.com:
+
+1. **Log into Make.com** and click "Create a new scenario"
+2. **Add the Trigger Module**:
+   - Search for "Webhook" or your payment processor (Stripe, PayPal, etc.)
+   - If using Webhook: Select "Custom Webhook"
+   - Copy the webhook URL Make.com provides
+   - Configure in OptimizePress to send data to this URL
+
+3. **Add HTTP Request Module**:
+   - Click the "+" button to add a new module
+   - Search for "HTTP" and select "Make a request"
+   - Configure as follows:
+     - **URL**: `https://your-app.replit.app/api/accounts/create` (or other endpoint)
+     - **Method**: POST
+     - **Headers**: 
+       - Add header: `X-API-Key` = `your-api-key-here`
+       - Add header: `Content-Type` = `application/json`
+     - **Body Type**: Raw
+     - **Content Type**: JSON (application/json)
+     - **Request Content**: Paste JSON body (see webhook configs below)
+
+4. **Map Variables**:
+   - Click on fields in the JSON body
+   - Select data from the trigger (OptimizePress webhook data)
+   - Map email, password, business name, etc.
+
+5. **Test and Activate**:
+   - Click "Run once" to test
+   - Verify the response shows success
+   - Toggle "Scheduling" to ON to activate
 
 ---
 
@@ -188,18 +227,106 @@ You need to set up 3 different webhooks. Here's what each one does:
 
 ---
 
+## 🎨 Make.com Scenario Examples
+
+### Scenario 1: Account Creation (for Webhook #1)
+
+**Modules Flow**:
+```
+OptimizePress Webhook → HTTP Request → (Optional) Email Module
+```
+
+**HTTP Request Configuration**:
+- **URL**: `https://your-app.replit.app/api/accounts/create`
+- **Method**: POST
+- **Headers**:
+  ```
+  Name: X-API-Key
+  Value: your-api-key-here
+  
+  Name: Content-Type
+  Value: application/json
+  ```
+- **Body**:
+  ```json
+  {
+    "email": "{{1.email}}",
+    "password": "{{1.password}}",
+    "businessName": "{{1.business_name}}"
+  }
+  ```
+  *Note: The numbers (1, 2, etc.) refer to module numbers in Make.com*
+
+### Scenario 2: Verify Membership (for Webhook #2)
+
+**Modules Flow**:
+```
+OptimizePress Login → HTTP Request → Router (check isActive) → Grant/Deny Access
+```
+
+**HTTP Request Configuration**:
+- **URL**: `https://your-app.replit.app/api/auth/verify-membership`
+- **Method**: POST
+- **Headers**: Same as Scenario 1
+- **Body**:
+  ```json
+  {
+    "email": "{{1.email}}",
+    "password": "{{1.password}}"
+  }
+  ```
+
+**Router Configuration**:
+- Add a "Router" module after HTTP Request
+- **Route 1** (Grant Access): Condition `{{2.subscription.isActive}}` = `true`
+- **Route 2** (Deny Access): Condition `{{2.subscription.isActive}}` = `false`
+
+### Scenario 3: Update Subscription (for Webhook #3)
+
+**Modules Flow**:
+```
+Payment Webhook → Set Variables (format dates) → HTTP Request
+```
+
+**Set Variables Module** (for date formatting):
+- **Variable 1 Name**: `startDate`
+- **Variable 1 Value**: `{{formatDate(now; "YYYY-MM-DDTHH:mm:ss.SSS[Z]")}}`
+- **Variable 2 Name**: `endDate`
+- **Variable 2 Value**: `{{formatDate(addMonths(now; 1); "YYYY-MM-DDTHH:mm:ss.SSS[Z]")}}`
+
+**HTTP Request Configuration**:
+- **URL**: `https://your-app.replit.app/api/auth/update-subscription`
+- **Method**: POST
+- **Headers**: Same as Scenario 1
+- **Body**:
+  ```json
+  {
+    "email": "{{1.email}}",
+    "subscriptionStatus": "active",
+    "subscriptionStartDate": "{{2.startDate}}",
+    "subscriptionEndDate": "{{2.endDate}}"
+  }
+  ```
+
+---
+
 ## 📅 Step 5: Date Format Configuration
 
 **Important**: OptimizePress must send dates in ISO 8601 format.
 
 If OptimizePress doesn't format dates correctly by default:
 
-### Using Zapier (Recommended):
-1. Add a "Formatter by Zapier" step before the webhook
-2. Choose "Date/Time" → "Format"
-3. Input: `{{subscription_end_date}}`
-4. Output format: `YYYY-MM-DDTHH:mm:ss.SSS[Z]`
+### Using Make.com (Recommended):
+1. Add a "Tools" → "Set variable" module before the HTTP request
+2. Or use "Text parser" → "Format date" function
+3. Input: `{{subscription_end_date}}` from OptimizePress
+4. Format function: `formatDate({{subscription_end_date}}; YYYY-MM-DDTHH:mm:ss.SSS[Z])`
 5. Example output: `2025-11-07T00:00:00.000Z`
+
+### Using Make.com Built-in Functions:
+- For current date: `{{now}}`
+- For date + 1 month: `{{addMonths(now; 1)}}`
+- To format: `{{formatDate(addMonths(now; 1); YYYY-MM-DDTHH:mm:ss.SSS[Z])}}`
 
 ### Manual Date Calculation:
 If you need to calculate the end date (for monthly subscriptions):
@@ -385,8 +512,9 @@ Here's how the subscription system works:
 
 ### Problem: Dates not formatting correctly
 **Solution**:
-- Use Zapier formatter to convert dates to ISO 8601
-- Ensure format is: `YYYY-MM-DDTHH:mm:ss.SSS[Z]`
+- Use Make.com's formatDate function to convert dates to ISO 8601
+- Format: `formatDate({{date}}; YYYY-MM-DDTHH:mm:ss.SSS[Z])`
+- Ensure output is: `YYYY-MM-DDTHH:mm:ss.SSS[Z]`
 - Test with the curl commands above to verify format
 
 ### Problem: Webhook not triggering
@@ -411,15 +539,27 @@ If you need help:
 ## ✅ Quick Checklist
 
 Before going live, verify:
-- [ ] All 3 webhooks are configured in OptimizePress
-- [ ] API key is correct in all webhook headers
-- [ ] Deployment URL is correct in all webhook URLs
-- [ ] Dates are in ISO 8601 format
-- [ ] Test account creation works (Webhook #1)
-- [ ] Test verification works (Webhook #2)
-- [ ] Test subscription update works (Webhook #3)
+
+### Make.com Setup:
+- [ ] Created 3 scenarios in Make.com (one for each webhook)
+- [ ] Each scenario has correct HTTP Request module configured
+- [ ] API key is correct in all HTTP request headers
+- [ ] Deployment URL is correct in all HTTP request URLs
+- [ ] Date formatting modules are configured (Scenario 3)
+- [ ] All scenarios are activated (Scheduling is ON)
+
+### Testing:
+- [ ] Test account creation works (Webhook #1 / Scenario 1)
+- [ ] Test verification works (Webhook #2 / Scenario 2)
+- [ ] Test subscription update works (Webhook #3 / Scenario 3)
+- [ ] Dates are in ISO 8601 format in all requests
 - [ ] Login page redirects based on `isActive` status
 - [ ] Payment/renewal flow triggers subscription updates
+
+### OptimizePress:
+- [ ] Webhooks configured to trigger Make.com scenarios
+- [ ] Custom login page calls verify-membership endpoint
+- [ ] Welcome emails include login credentials
 
 ---
 
