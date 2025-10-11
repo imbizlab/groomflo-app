@@ -47,6 +47,115 @@ function verifyApiKey(req: any, res: any, next: any) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
+  // User login endpoint
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+
+      const user = await storage.getUserByUsername(email);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      const passwordMatch = await bcrypt.compare(password, user.password);
+      if (!passwordMatch) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Store userId in session for persistent authentication
+      req.session.userId = user.id;
+      
+      // Also set user in request for immediate use
+      req.user = {
+        id: user.id,
+        username: user.username,
+      };
+
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.username,
+        },
+      });
+    } catch (error) {
+      console.error("Error during login:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // User registration endpoint  
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+
+      const existingUser = await storage.getUserByUsername(email);
+      if (existingUser) {
+        return res.status(400).json({ error: "An account with this email already exists" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({
+        username: email,
+        password: hashedPassword,
+      });
+
+      // Automatically log in the user after registration
+      req.session.userId = user.id;
+      req.user = {
+        id: user.id,
+        username: user.username,
+      };
+
+      res.status(201).json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.username,
+        },
+      });
+    } catch (error) {
+      console.error("Error during registration:", error);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
+  // User logout endpoint
+  app.post("/api/auth/logout", async (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Error destroying session:", err);
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.json({ success: true });
+    });
+  });
+
+  // Check auth status
+  app.get("/api/auth/me", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    res.json({
+      user: {
+        id: req.user.id,
+        email: req.user.username,
+      },
+    });
+  });
+  
   app.post("/api/accounts/create", verifyApiKey, async (req, res) => {
     try {
       const validatedData = accountCreationSchema.parse(req.body);

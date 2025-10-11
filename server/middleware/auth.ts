@@ -12,20 +12,22 @@ declare global {
   }
 }
 
-export async function devAuthMiddleware(req: Request, res: Response, next: NextFunction) {
-  let user = await storage.getUserByUsername("demo-user");
-  
-  if (!user) {
-    user = await storage.createUser({
-      username: "demo-user",
-      password: "demo-password",
-    });
+declare module "express-session" {
+  interface SessionData {
+    userId?: string;
   }
-  
-  req.user = {
-    id: user.id,
-    username: user.username,
-  };
-  
+}
+
+export async function devAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+  // Restore user from session if it exists
+  if (req.session?.userId) {
+    const user = await storage.getUser(req.session.userId);
+    if (user) {
+      req.user = {
+        id: user.id,
+        username: user.username,
+      };
+    }
+  }
   next();
 }

@@ -18,6 +18,9 @@ import {
   MessageSquare
 } from "lucide-react"
 import { Post } from "@shared/schema"
+import { useMutation } from "@tanstack/react-query"
+import { apiRequest, queryClient } from "@/lib/queryClient"
+import { useToast } from "@/hooks/use-toast"
 
 interface DashboardProps {
   businessName?: string
@@ -34,6 +37,7 @@ export function Dashboard({
   isGenerating = false,
   isLoading = false
 }: DashboardProps) {
+  const { toast } = useToast()
 
   const weekStats = {
     totalPosts: 7,
@@ -45,24 +49,76 @@ export function Dashboard({
 
   const completionPercentage = Math.round((weekStats.approved + weekStats.posted) / weekStats.totalPosts * 100)
 
+  const updatePostMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return apiRequest(`/api/posts/${id}`, "PATCH", data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] })
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update post",
+      })
+    },
+  })
+
   const handleApprovePost = (postId: string) => {
-    console.log("Approving post:", postId)
+    updatePostMutation.mutate(
+      { id: postId, data: { status: "approved" } },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Post approved",
+            description: "Post is ready to be published",
+          })
+        },
+      }
+    )
   }
 
   const handleRejectPost = (postId: string) => {
-    console.log("Rejecting post:", postId)
+    updatePostMutation.mutate(
+      { id: postId, data: { status: "rejected" } },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Post rejected",
+            description: "Post has been marked as rejected",
+          })
+        },
+      }
+    )
   }
 
   const handleRegenerateText = (postId: string) => {
-    console.log("Regenerating text for post:", postId)
+    toast({
+      title: "Coming soon",
+      description: "Text regeneration feature will be available soon",
+    })
   }
 
   const handleRegenerateImage = (postId: string) => {
-    console.log("Regenerating image for post:", postId)
+    toast({
+      title: "Coming soon",
+      description: "Image regeneration feature will be available soon",
+    })
   }
 
   const handleEditPost = (postId: string, content: string) => {
-    console.log("Editing post:", postId, content)
+    updatePostMutation.mutate(
+      { id: postId, data: { content } },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Post updated",
+            description: "Post content has been saved",
+          })
+        },
+      }
+    )
   }
 
   return (
@@ -217,58 +273,20 @@ export function Dashboard({
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Reach</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">2,847</div>
-                <p className="text-xs text-muted-foreground">
-                  +12% from last week
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Engagement</CardTitle>
-                <Heart className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">421</div>
-                <p className="text-xs text-muted-foreground">
-                  Likes, comments, shares
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Comments</CardTitle>
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">89</div>
-                <p className="text-xs text-muted-foreground">
-                  +23% engagement rate
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
           <Card>
             <CardHeader>
-              <CardTitle>Performance Overview</CardTitle>
+              <CardTitle>Analytics Coming Soon</CardTitle>
               <CardDescription>
                 Track how your automated posts are performing across platforms
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-32 flex items-center justify-center text-muted-foreground">
-                <BarChart3 className="h-8 w-8 mr-2" />
-                <span>Analytics chart will be implemented with real data</span>
+              <div className="h-64 flex flex-col items-center justify-center text-muted-foreground gap-4">
+                <BarChart3 className="h-12 w-12" />
+                <div className="text-center">
+                  <p className="font-medium">Performance analytics will be available soon</p>
+                  <p className="text-sm mt-2">Track reach, engagement, and post performance</p>
+                </div>
               </div>
             </CardContent>
           </Card>
