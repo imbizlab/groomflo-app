@@ -89,6 +89,8 @@ app.use((req, res, next) => {
     log(`serving on port ${port}`);
   });
   
-  postSchedulerWorker.start(5);
-  emailNotificationWorker.start(24);
+// Temporarily disable background workers until DB connection confirmed
+// postSchedulerWorker.start(5);
+// emailNotificationWorker.start(24);
+
 })();
