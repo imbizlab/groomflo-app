@@ -1,6 +1,8 @@
+import pkg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
 import * as schema from "@shared/schema";
+
+const { Pool } = pkg;
 
 // Verify that DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
